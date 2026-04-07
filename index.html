@@ -64,6 +64,22 @@ map.addLayer({
   }
 });
 
+  map.addSource('assembly', {
+  type: 'geojson',
+  data: 'data/assembly_areas.geojson'
+});
+
+map.addLayer({
+  id: 'assembly-points',
+  type: 'circle',
+  source: 'assembly',
+  paint: {
+    'circle-radius': 8,
+    'circle-color': '#3B6D11',
+    'circle-stroke-width': 2,
+    'circle-stroke-color': '#ffffff'
+  }
+});
 });
   </script>
 </body>
