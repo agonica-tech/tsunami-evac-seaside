@@ -48,6 +48,21 @@ map.on('load', () => {
       'line-width': 2
     }
   });
+  map.addSource('routes', {
+  type: 'geojson',
+  data: 'data/EVAC.geojson'
+});
+
+map.addLayer({
+  id: 'evac-routes',
+  type: 'line',
+  source: 'routes',
+  paint: {
+    'line-color': '#3B6D11',
+    'line-width': 3,
+    'line-dasharray': [2, 1]
+  }
+});
 
 });
   </script>
