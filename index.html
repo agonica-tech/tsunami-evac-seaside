@@ -14,13 +14,42 @@
 <body>
   <div id="map"></div>
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21saGJlc2FmMDM4YTNjcHJxeGs5OGF1ZCJ9.z8t96lrFjK2w32oeH4qGRQ';
-    const map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-123.9229, 45.9934],
-      zoom: 13
-    });
+    mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v12',
+  center: [-123.9229, 45.9934],
+  zoom: 13
+});
+
+map.on('load', () => {
+
+  map.addSource('inundation', {
+    type: 'geojson',
+    data: 'data/inundation_zone.geojson'
+  });
+
+  map.addLayer({
+    id: 'inundation-fill',
+    type: 'fill',
+    source: 'inundation',
+    paint: {
+      'fill-color': '#E24B4A',
+      'fill-opacity': 0.4
+    }
+  });
+
+  map.addLayer({
+    id: 'inundation-outline',
+    type: 'line',
+    source: 'inundation',
+    paint: {
+      'line-color': '#A32D2D',
+      'line-width': 2
+    }
+  });
+
+});
   </script>
 </body>
 </html>
