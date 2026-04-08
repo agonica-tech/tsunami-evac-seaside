@@ -41,6 +41,56 @@
   color: #888;
   margin-top: 8px;
 }
+    #legend {
+  position: absolute;
+  bottom: 30px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-family: sans-serif;
+  z-index: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+#legend h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #111;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #444;
+  margin-bottom: 5px;
+}
+
+.legend-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-line {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px #3B6D11;
+}
   </style>
 </head>
 <body>
@@ -49,6 +99,21 @@
   <h1>Seaside, OR — Tsunami Evacuation</h1>
   <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
   <p class="source">Data: DOGAMI 2013 · Mapbox GL JS</p>
+</div>
+  <div id="legend">
+  <h3>Legend</h3>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background:#F0A500; opacity:0.5;"></div>
+    Tsunami inundation zone
+  </div>
+  <div class="legend-item">
+    <div class="legend-line" style="background:#3B6D11; border-top: 2px dashed #3B6D11; height:0;"></div>
+    Evacuation routes
+  </div>
+  <div class="legend-item">
+    <div class="legend-circle" style="background:#3B6D11;"></div>
+    Assembly areas
+  </div>
 </div>
   <script>
     mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
