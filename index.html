@@ -182,6 +182,28 @@ map.addLayer({
     'circle-stroke-color': '#ffffff'
   }
 });
+    map.on('click', 'assembly-points', (e) => {
+    const name = e.features[0].properties.name || 'Assembly Area';
+    new mapboxgl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(`
+        <strong>${name}</strong><br/>
+        <span style="font-size:11px; color:#444;">
+          Tsunami assembly area.<br/>
+          Do not return to inundation zone<br/>
+          until official all-clear.
+        </span>
+      `)
+      .addTo(map);
+  });
+
+  map.on('mouseenter', 'assembly-points', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', 'assembly-points', () => {
+    map.getCanvas().style.cursor = '';
+  });
 });
   </script>
 </body>
