@@ -9,10 +9,47 @@
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #info-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 14px 16px;
+  border-radius: 8px;
+  max-width: 260px;
+  font-family: sans-serif;
+  z-index: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+#info-panel h1 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: #111;
+}
+
+#info-panel p {
+  font-size: 12px;
+  color: #444;
+  margin: 0 0 4px 0;
+  line-height: 1.5;
+}
+
+#info-panel .source {
+  font-size: 10px;
+  color: #888;
+  margin-top: 8px;
+}
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="info-panel">
+  <h1>Seaside, OR — Tsunami Evacuation</h1>
+  <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
+  <p class="source">Data: DOGAMI 2013 · Mapbox GL JS</p>
+</div>
   <script>
     mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
 const map = new mapboxgl.Map({
