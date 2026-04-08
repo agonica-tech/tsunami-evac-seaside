@@ -183,7 +183,7 @@ map.addLayer({
   }
 });
     map.on('click', 'assembly-points', (e) => {
-    const name = e.features[0].properties.location || 'Assembly Area';
+    const name = e.features[0].properties.Location || 'Assembly Area';
     new mapboxgl.Popup()
       .setLngLat(e.lngLat)
       .setHTML(`
