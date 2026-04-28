@@ -166,10 +166,6 @@ const map = new mapboxgl.Map({
   zoom: 13
 });
 
-let pulseDirection = 1;
-let pulseSize = 8;
-
-
 map.on('load', () => {
 
   map.addSource('inundation', {
@@ -260,20 +256,6 @@ map.on('load', () => {
     'circle-stroke-color': '#ffffff'
   }
 });
-
-  map.addLayer({
-    id: 'tsunami-sirens',
-    type: 'circle',
-    source: 'critical',
-    filter: ['==', ['get', 'Site_Type'], 'TSUNAMI SIREN'],
-    paint: {
-      'circle-radius': 8,
-      'circle-color': '#E24B4A',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
-      'circle-opacity': 1
-    }
-  });
 
   map.on('click', 'assembly-points', (e) => {
     const name = e.features[0].properties.Location || 'Assembly Area';
