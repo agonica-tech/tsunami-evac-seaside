@@ -169,13 +169,6 @@ const map = new mapboxgl.Map({
 let pulseDirection = 1;
 let pulseSize = 8;
 
-function animateSirens() {
-  pulseSize += 0.15 * pulseDirection;
-  if (pulseSize >= 12) pulseDirection = -1;
-  if (pulseSize <= 7) pulseDirection = 1;
-  map.setPaintProperty('tsunami-sirens', 'circle-radius', pulseSize);
-  requestAnimationFrame(animateSirens);
-}
 
 map.on('load', () => {
 
@@ -342,8 +335,6 @@ map.on('load', () => {
   map.on('mouseleave', 'critical-buildings', () => {
     map.getCanvas().style.cursor = '';
   });
-
-setTimeout(() => animateSirens(), 500);
 
 }); 
   </script>
