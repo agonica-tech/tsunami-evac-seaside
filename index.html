@@ -228,10 +228,9 @@ map.addLayer({
     .setLngLat(e.lngLat)
     .setHTML(`
       <strong>${name}</strong><br/>
-      <span style="font-size:11px; color:#444;">
+      <span style="font-size:11px; color:#444; max-width:160px; display:block;">
         ${type}<br/>
-        This facility is within or near<br/>
-        the tsunami inundation zone.
+        This facility is within or near the tsunami inundation zone.
       </span>
     `)
     .addTo(map);
