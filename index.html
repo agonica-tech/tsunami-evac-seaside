@@ -258,7 +258,7 @@ map.on('load', () => {
         'BRIDGE', 'bridge',
         'AIRPORT', 'airport',
         'LIGHTHOUSE', 'lighthouse',
-        'EMERGENCY MANAGEMENT', 'emergency',
+        'EMERGENCY MANAGEMENT', 'marker',
         'COAST GUARD', 'harbor',
         'marker'
       ],
@@ -327,7 +327,7 @@ map.on('load', () => {
     map.getCanvas().style.cursor = '';
   });
 
-  animateSirens();
+setTimeout(() => animateSirens(), 500);
 
 }); 
   </script>
