@@ -157,13 +157,25 @@
 </div>
 </div>
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
+mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
+
 const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/mapbox/streets-v12',
   center: [-123.9229, 45.9934],
   zoom: 13
 });
+
+let pulseDirection = 1;
+let pulseSize = 8;
+
+function animateSirens() {
+  pulseSize += 0.15 * pulseDirection;
+  if (pulseSize >= 12) pulseDirection = -1;
+  if (pulseSize <= 7) pulseDirection = 1;
+  map.setPaintProperty('tsunami-sirens', 'circle-radius', pulseSize);
+  requestAnimationFrame(animateSirens);
+}
 
 map.on('load', () => {
 
@@ -191,69 +203,85 @@ map.on('load', () => {
       'line-width': 2
     }
   });
-  map.addSource('routes', {
-  type: 'geojson',
-  data: 'data/evac_routes_n.geojson'
-});
 
-map.addLayer({
-  id: 'evac-routes',
-  type: 'line',
-  source: 'routes',
-  paint: {
-    'line-color': '#3B6D11',
-    'line-width': 3,
-    'line-dasharray': [2, 1]
-  }
-});
+  map.addSource('routes', {
+    type: 'geojson',
+    data: 'data/evac_routes_n.geojson'
+  });
+
+  map.addLayer({
+    id: 'evac-routes',
+    type: 'line',
+    source: 'routes',
+    paint: {
+      'line-color': '#3B6D11',
+      'line-width': 3,
+      'line-dasharray': [2, 1]
+    }
+  });
 
   map.addSource('assembly', {
-  type: 'geojson',
-  data: 'data/assembly_areas.geojson'
-});
+    type: 'geojson',
+    data: 'data/assembly_areas.geojson'
+  });
 
-map.addLayer({
-  id: 'assembly-points',
-  type: 'circle',
-  source: 'assembly',
-  paint: {
-    'circle-radius': 8,
-    'circle-color': '#3B6D11',
-    'circle-stroke-width': 2,
-    'circle-stroke-color': '#ffffff'
-  }
-});
+  map.addLayer({
+    id: 'assembly-points',
+    type: 'circle',
+    source: 'assembly',
+    paint: {
+      'circle-radius': 8,
+      'circle-color': '#3B6D11',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff'
+    }
+  });
+
   map.addSource('critical', {
-  type: 'geojson',
-  data: 'data/CriticalFacili_facilities_JSON.geojson'
-});
+    type: 'geojson',
+    data: 'data/CriticalFacili_facilities_JSON.geojson'
+  });
 
-map.addLayer({
-  id: 'critical-buildings',
-  type: 'circle',
-  source: 'critical',
-  paint: {
-  'circle-radius': 7,
-  'circle-color': [
-    'match',
-    ['get', 'Site_Type'],
-    'HOSPITAL', '#E24B4A',
-    'SCHOOL', '#F0A500',
-    'LAW ENFORCEMENT', '#0057A8',
-    'FIRE DEPARTMENT', '#E8650A',
-    'BRIDGE', '#8B4513',
-    'AIRPORT', '#9B59B6',
-    'TSUNAMI SIREN', '#E91E8C',
-    'LIGHTHOUSE', '#00BCD4',
-    'EMERGENCY MANAGEMENT', '#2E7D32',
-    'COAST GUARD', '#00838F',
-    '#888888'
-  ],
-  'circle-stroke-width': 2,
-  'circle-stroke-color': '#ffffff'
-}
-});
-    map.on('click', 'assembly-points', (e) => {
+  map.addLayer({
+    id: 'critical-buildings',
+    type: 'symbol',
+    source: 'critical',
+    filter: ['!=', ['get', 'Site_Type'], 'Tsunami Siren'],
+    layout: {
+      'icon-image': [
+        'match',
+        ['get', 'Site_Type'],
+        'HOSPITAL', 'hospital',
+        'SCHOOL', 'school',
+        'LAW ENFORCEMENT', 'police',
+        'FIRE DEPARTMENT', 'fire-station',
+        'BRIDGE', 'bridge',
+        'AIRPORT', 'airport',
+        'LIGHTHOUSE', 'lighthouse',
+        'EMERGENCY MANAGEMENT', 'emergency',
+        'COAST GUARD', 'harbor',
+        'marker'
+      ],
+      'icon-size': 1.5,
+      'icon-allow-overlap': true
+    }
+  });
+
+  map.addLayer({
+    id: 'tsunami-sirens',
+    type: 'circle',
+    source: 'critical',
+    filter: ['==', ['get', 'Site_Type'], 'Tsunami Siren'],
+    paint: {
+      'circle-radius': 8,
+      'circle-color': '#E24B4A',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff',
+      'circle-opacity': 1
+    }
+  });
+
+  map.on('click', 'assembly-points', (e) => {
     const name = e.features[0].properties.Location || 'Assembly Area';
     new mapboxgl.Popup()
       .setLngLat(e.lngLat)
@@ -275,29 +303,33 @@ map.addLayer({
   map.on('mouseleave', 'assembly-points', () => {
     map.getCanvas().style.cursor = '';
   });
-});
-    map.on('click', 'critical-buildings', (e) => {
-  const name = e.features[0].properties.Name || 'Critical Facility';
-  const type = e.features[0].properties.Site_Type || '';
-  new mapboxgl.Popup()
-    .setLngLat(e.lngLat)
-    .setHTML(`
-      <strong>${name}</strong><br/>
-      <span style="font-size:11px; color:#444; max-width:160px; display:block;">
-        ${type}<br/>
-        This facility is within or near the tsunami inundation zone.
-      </span>
-    `)
-    .addTo(map);
-});
 
-map.on('mouseenter', 'critical-buildings', () => {
-  map.getCanvas().style.cursor = 'pointer';
-});
+  map.on('click', 'critical-buildings', (e) => {
+    const name = e.features[0].properties.Name || 'Critical Facility';
+    const type = e.features[0].properties.Site_Type || '';
+    new mapboxgl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(`
+        <strong>${name}</strong><br/>
+        <span style="font-size:11px; color:#444; max-width:160px; display:block;">
+          ${type}<br/>
+          This facility is within or near the tsunami inundation zone.
+        </span>
+      `)
+      .addTo(map);
+  });
 
-map.on('mouseleave', 'critical-buildings', () => {
-  map.getCanvas().style.cursor = '';
-});
+  map.on('mouseenter', 'critical-buildings', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', 'critical-buildings', () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  animateSirens();
+
+}); 
   </script>
 </body>
 </html>
