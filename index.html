@@ -192,11 +192,25 @@ map.addLayer({
   type: 'circle',
   source: 'critical',
   paint: {
-    'circle-radius': 7,
-    'circle-color': '#0057A8',
-    'circle-stroke-width': 2,
-    'circle-stroke-color': '#ffffff'
-  }
+  'circle-radius': 7,
+  'circle-color': [
+    'match',
+    ['get', 'Site_Type'],
+    'Hospital', '#E24B4A',
+    'School', '#F0A500',
+    'Law Enforcement', '#0057A8',
+    'Fire Department', '#E8650A',
+    'Bridge', '#8B4513',
+    'Airport', '#9B59B6',
+    'Tsunami Siren', '#E91E8C',
+    'Lighthouse', '#00BCD4',
+    'Emergency Management', '#2E7D32',
+    'Coast Guard', '#00838F',
+    '#888888'
+  ],
+  'circle-stroke-width': 2,
+  'circle-stroke-color': '#ffffff'
+}
 });
     map.on('click', 'assembly-points', (e) => {
     const name = e.features[0].properties.Location || 'Assembly Area';
