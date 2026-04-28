@@ -182,6 +182,22 @@ map.addLayer({
     'circle-stroke-color': '#ffffff'
   }
 });
+  map.addSource('critical', {
+  type: 'geojson',
+  data: 'data/CriticalFacili_facilities_JSON.geojson'
+});
+
+map.addLayer({
+  id: 'critical-buildings',
+  type: 'circle',
+  source: 'critical',
+  paint: {
+    'circle-radius': 7,
+    'circle-color': '#0057A8',
+    'circle-stroke-width': 2,
+    'circle-stroke-color': '#ffffff'
+  }
+});
     map.on('click', 'assembly-points', (e) => {
     const name = e.features[0].properties.Location || 'Assembly Area';
     new mapboxgl.Popup()
