@@ -243,29 +243,45 @@ map.on('load', () => {
   });
 
   map.addLayer({
-    id: 'critical-buildings',
-    type: 'symbol',
-    source: 'critical',
-    filter: ['!=', ['get', 'Site_Type'], 'TSUNAMI SIREN'],
-    layout: {
-      'icon-image': [
-        'match',
-        ['get', 'Site_Type'],
-        'HOSPITAL', 'hospital',
-        'SCHOOL', 'school',
-        'LAW ENFORCEMENT', 'police',
-        'FIRE DEPARTMENT', 'fire-station',
-        'BRIDGE', 'bridge',
-        'AIRPORT', 'airport',
-        'LIGHTHOUSE', 'lighthouse',
-        'EMERGENCY MANAGEMENT', 'marker',
-        'COAST GUARD', 'harbor',
-        'marker'
-      ],
-      'icon-size': 1.5,
-      'icon-allow-overlap': true
-    }
-  });
+  id: 'critical-buildings',
+  type: 'symbol',
+  source: 'critical',
+  filter: ['!=', ['get', 'Site_Type'], 'TSUNAMI SIREN'],
+  layout: {
+    'icon-image': [
+      'match',
+      ['get', 'Site_Type'],
+      'HOSPITAL', 'hospital',
+      'SCHOOL', 'school',
+      'LAW ENFORCEMENT', 'police',
+      'FIRE DEPARTMENT', 'fire-station',
+      'BRIDGE', 'bridge',
+      'AIRPORT', 'airport',
+      'LIGHTHOUSE', 'lighthouse',
+      'EMERGENCY MANAGEMENT', 'marker',
+      'COAST GUARD', 'harbor',
+      'marker'
+    ],
+    'icon-size': 1.5,
+    'icon-allow-overlap': true
+  },
+  paint: {
+    'icon-color': [
+      'match',
+      ['get', 'Site_Type'],
+      'HOSPITAL', '#E24B4A',
+      'SCHOOL', '#F0A500',
+      'LAW ENFORCEMENT', '#0057A8',
+      'FIRE DEPARTMENT', '#E8650A',
+      'BRIDGE', '#8B4513',
+      'AIRPORT', '#9B59B6',
+      'LIGHTHOUSE', '#00BCD4',
+      'EMERGENCY MANAGEMENT', '#2E7D32',
+      'COAST GUARD', '#00838F',
+      '#888888'
+    ]
+  }
+});
 
   map.addLayer({
     id: 'tsunami-sirens',
