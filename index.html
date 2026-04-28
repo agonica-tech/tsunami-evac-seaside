@@ -246,7 +246,7 @@ map.on('load', () => {
     id: 'critical-buildings',
     type: 'symbol',
     source: 'critical',
-    filter: ['!=', ['get', 'Site_Type'], 'Tsunami Siren'],
+    filter: ['!=', ['get', 'Site_Type'], 'TSUNAMI SIREN'],
     layout: {
       'icon-image': [
         'match',
@@ -271,7 +271,7 @@ map.on('load', () => {
     id: 'tsunami-sirens',
     type: 'circle',
     source: 'critical',
-    filter: ['==', ['get', 'Site_Type'], 'Tsunami Siren'],
+    filter: ['==', ['get', 'Site_Type'], 'TSUNAMI SIREN'],
     paint: {
       'circle-radius': 8,
       'circle-color': '#E24B4A',
