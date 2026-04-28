@@ -132,10 +132,6 @@
   Fire Department
 </div>
 <div class="legend-item">
-  <div class="legend-circle" style="background:#E91E8C;"></div>
-  Tsunami Siren
-</div>
-<div class="legend-item">
   <div class="legend-circle" style="background:#8B4513;"></div>
   Bridge
 </div>
@@ -231,17 +227,30 @@ map.on('load', () => {
     data: 'data/CriticalFacili_facilities_JSON.geojson'
   });
 
- map.addLayer({
-  id: 'critical-buildings',
-  type: 'circle',
-  source: 'critical',
-paint: {
-  'circle-radius': 6,
-  'circle-color': '#E91E8C',
-  'circle-stroke-width': 1,
-  'circle-stroke-color': '#ffffff'
-}
-});
+  map.addLayer({
+    id: 'critical-buildings',
+    type: 'circle',
+    source: 'critical',
+    paint: {
+      'circle-radius': 7,
+      'circle-color': [
+        'match',
+        ['get', 'Site_Type'],
+        'HOSPITAL', '#E24B4A',
+        'SCHOOL', '#F0A500',
+        'LAW ENFORCEMENT', '#0057A8',
+        'FIRE DEPARTMENT', '#E8650A',
+        'BRIDGE', '#8B4513',
+        'AIRPORT', '#9B59B6',
+        'LIGHTHOUSE', '#00BCD4',
+        'EMERGENCY MANAGEMENT', '#2E7D32',
+        'COAST GUARD', '#00838F',
+        '#888888'
+      ],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff'
+    }
+  });
 
   map.on('click', 'assembly-points', (e) => {
     const name = e.features[0].properties.Location || 'Assembly Area';
