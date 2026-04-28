@@ -221,6 +221,29 @@ map.addLayer({
     map.getCanvas().style.cursor = '';
   });
 });
+    map.on('click', 'critical-buildings', (e) => {
+  const name = e.features[0].properties.Name || 'Critical Facility';
+  const type = e.features[0].properties.Site_Type || '';
+  new mapboxgl.Popup()
+    .setLngLat(e.lngLat)
+    .setHTML(`
+      <strong>${name}</strong><br/>
+      <span style="font-size:11px; color:#444;">
+        ${type}<br/>
+        This facility is within or near<br/>
+        the tsunami inundation zone.
+      </span>
+    `)
+    .addTo(map);
+});
+
+map.on('mouseenter', 'critical-buildings', () => {
+  map.getCanvas().style.cursor = 'pointer';
+});
+
+map.on('mouseleave', 'critical-buildings', () => {
+  map.getCanvas().style.cursor = '';
+});
   </script>
 </body>
 </html>
