@@ -286,6 +286,9 @@
   </div>
 
   <div id="legend">
+    <div id="legend-close" style="display:none; text-align:right; margin-bottom:4px;">
+  <button onclick="collapseLegend()" style="background:none; border:none; font-size:16px; cursor:pointer; color:#888;">✕</button>
+</div>
     <h3>Legend</h3>
     <div class="legend-item">
       <div class="legend-swatch" style="background:#F0A500; opacity:0.5;"></div>
@@ -634,12 +637,16 @@
 function collapseLegend() {
   if (!isMobile()) return;
   document.getElementById('legend').style.display = 'none';
+  document.getElementById('legend-close').style.display = 'none';
   const btn = document.getElementById('legend-toggle');
   btn.style.display = 'flex';
 }
 
 function expandLegend() {
   document.getElementById('legend').style.display = 'block';
+  if (isMobile()) {
+    document.getElementById('legend-close').style.display = 'block';
+  }
   document.getElementById('legend-toggle').style.display = 'none';
 }
 
