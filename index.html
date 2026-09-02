@@ -43,7 +43,6 @@
       margin-top: 8px;
     }
 
-    /* Animation panel elements */
     #anim-view { display: none; }
     #info-view { display: block; }
 
@@ -69,7 +68,7 @@
       font-size: 11px;
       color: #444;
       line-height: 1.5;
-      min-height: 48px;
+      min-height: 52px;
       margin-bottom: 10px;
     }
 
@@ -189,7 +188,7 @@
     <div id="info-view">
       <h1>Seaside, OR — Tsunami Evacuation</h1>
       <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
-      <p class="source">Data: DOGAMI 2013 · Mapbox GL JS</p>
+      <p class="source">Sources: DOGAMI O-15-02 · NOAA · Oregon OEM</p>
       <div class="btn-row" style="margin-top:10px;">
         <button class="btn primary" onclick="startAnim()">▶ Simulate Event</button>
       </div>
@@ -209,7 +208,7 @@
       <div class="clock-label">elapsed since earthquake</div>
       <div class="phase-label" id="phase-label">Earthquake</div>
       <div class="phase-text" id="phase-text">Violent shaking begins. This is your only warning — start moving to high ground immediately.</div>
-      <input type="range" id="timeline-slider" min="0" max="30" value="0" oninput="onSlider(this.value)"/>
+      <input type="range" id="timeline-slider" min="0" max="30" value="0" step="0.1" oninput="onSlider(this.value)"/>
       <div class="slider-labels">
         <span>0 min</span>
         <span>15 min</span>
@@ -298,35 +297,40 @@
         label: 'Earthquake',
         text: 'Violent shaking begins. This is your only warning — start moving to high ground immediately.',
         fillColor: '#F0A500',
-        fillOpacity: 0.25
+        fillOpacity: 0.25,
+        waveOpacity: 0
       },
       {
         min: 5,
         label: 'Ground Subsidence',
         text: 'The coastline drops 3–6 feet as the fault releases. Low areas begin flooding before any wave arrives.',
         fillColor: '#E8650A',
-        fillOpacity: 0.4
+        fillOpacity: 0.4,
+        waveOpacity: 0
       },
       {
         min: 15,
         label: 'Wave 1 Arrives',
         text: 'First tsunami wave reaches shore. Inundation of low-lying Seaside begins. Anyone in the hazard zone is in extreme danger.',
         fillColor: '#E24B4A',
-        fillOpacity: 0.65
+        fillOpacity: 0.65,
+        waveOpacity: 0.5
       },
       {
         min: 20,
         label: 'Wave 2 — Most Powerful',
         text: 'The second wave is often the largest. Stay at assembly areas. Do not attempt to return.',
         fillColor: '#A32D2D',
-        fillOpacity: 0.8
+        fillOpacity: 0.8,
+        waveOpacity: 0.75
       },
       {
         min: 25,
         label: 'Continued Danger',
         text: 'Waves continue arriving every 10–45 minutes. Do not return for at least 12 hours. Wait for NOAA all-clear.',
         fillColor: '#7B0000',
-        fillOpacity: 0.85
+        fillOpacity: 0.85,
+        waveOpacity: 0.85
       }
     ];
 
@@ -346,56 +350,46 @@
       return idx;
     }
 
+    // Interpolate between two numbers
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
     function updateMap(minute) {
-  const phase = getPhase(minute);
-
-  // Base inundation zone
-  map.setPaintProperty('inundation-fill', 'fill-color', phase.fillColor);
-  map.setPaintProperty('inundation-fill', 'fill-opacity', phase.fillOpacity);
-
-  // Wave advance — only active from T+15 onward
-  if (minute >= 15) {
-    // Wave travels from coast (-123.93) to inland (-123.88) over 10 minutes
-    const waveProgress = Math.min((minute - 15) / 10, 1);
-    const coastLine = -123.935;
-    const inlandLine = -123.88;
-    const waveFront = coastLine + (waveProgress * (inlandLine - coastLine));
-
-    map.getSource('wave-clip').setData({
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [-124.1, 45.9],
-          [waveFront, 45.9],
-          [waveFront, 46.05],
-          [-124.1, 46.05],
-          [-124.1, 45.9]
-        ]]
+      // Find surrounding phases for smooth interpolation
+      let phaseA = phases[0];
+      let phaseB = phases[0];
+      for (let i = 0; i < phases.length - 1; i++) {
+        if (minute >= phases[i].min && minute < phases[i + 1].min) {
+          phaseA = phases[i];
+          phaseB = phases[i + 1];
+        }
       }
-    });
-  } else {
-    // Reset wave clip to empty
-    map.getSource('wave-clip').setData({
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [-124.1, 45.9],
-          [-124.1, 46.05],
-          [-124.1, 46.05],
-          [-124.1, 45.9],
-          [-124.1, 45.9]
-        ]]
+      if (minute >= phases[phases.length - 1].min) {
+        phaseA = phaseB = phases[phases.length - 1];
       }
-    });
-  }
-}
+
+      // Interpolation factor between phases
+      const t = phaseA === phaseB ? 1 :
+        (minute - phaseA.min) / (phaseB.min - phaseA.min);
+
+      // Smoothly interpolate opacity
+      const opacity = lerp(phaseA.fillOpacity, phaseB.fillOpacity, t);
+      const waveOpacity = lerp(phaseA.waveOpacity, phaseB.waveOpacity, t);
+
+      // Use phaseB color once past midpoint for snappier feel
+      const fillColor = t > 0.5 ? phaseB.fillColor : phaseA.fillColor;
+
+      map.setPaintProperty('inundation-fill', 'fill-color', fillColor);
+      map.setPaintProperty('inundation-fill', 'fill-opacity', opacity);
+      map.setPaintProperty('inundation-wave', 'fill-opacity', waveOpacity);
+    }
 
     function updateUI(minute) {
       const mins = Math.floor(minute);
       const secs = Math.floor((minute % 1) * 60);
-      document.getElementById('clock').textContent = `${mins}m ${secs.toString().padStart(2,'0')}s`;
+      document.getElementById('clock').textContent =
+        `${mins}m ${secs.toString().padStart(2, '0')}s`;
       document.getElementById('timeline-slider').value = minute;
 
       const phase = getPhase(minute);
@@ -403,10 +397,9 @@
       document.getElementById('phase-label').textContent = phase.label;
       document.getElementById('phase-text').textContent = phase.text;
 
-      // Update dots
       for (let i = 0; i < 5; i++) {
-        const dot = document.getElementById(`dot${i}`);
-        dot.classList.toggle('active', i <= phaseIdx);
+        document.getElementById(`dot${i}`)
+          .classList.toggle('active', i <= phaseIdx);
       }
     }
 
@@ -414,7 +407,6 @@
       if (!lastTs) lastTs = ts;
       const dt = (ts - lastTs) / 1000;
       lastTs = ts;
-      // 1 real second = 1 simulated minute
       currentMinute = Math.min(currentMinute + dt, TOTAL_MINUTES);
       updateMap(currentMinute);
       updateUI(currentMinute);
@@ -458,38 +450,26 @@
       updateUI(0);
     }
 
-   function resetAnim() {
-  playing = false;
-  if (raf) cancelAnimationFrame(raf);
-  document.getElementById('play-btn').textContent = '▶ Play';
-  document.getElementById('anim-view').style.display = 'none';
-  document.getElementById('info-view').style.display = 'block';
-  currentMinute = 0;
-  map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
-  map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
-  map.getSource('wave-clip').setData({
-    type: 'Feature',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-124.1, 45.9],
-        [-124.1, 46.05],
-        [-124.1, 46.05],
-        [-124.1, 45.9],
-        [-124.1, 45.9]
-      ]]
+    function resetAnim() {
+      playing = false;
+      if (raf) cancelAnimationFrame(raf);
+      document.getElementById('play-btn').textContent = '▶ Play';
+      document.getElementById('anim-view').style.display = 'none';
+      document.getElementById('info-view').style.display = 'block';
+      currentMinute = 0;
+      map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
+      map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
+      map.setPaintProperty('inundation-wave', 'fill-opacity', 0);
     }
-  });
-}
 
     map.on('load', () => {
 
-      
       map.addSource('inundation', {
         type: 'geojson',
         data: 'data/DOGAMI_Tsunami_inundation.geojson'
       });
 
+      // Base inundation fill — amber, transitions through phases
       map.addLayer({
         id: 'inundation-fill',
         type: 'fill',
@@ -497,6 +477,18 @@
         paint: {
           'fill-color': '#F0A500',
           'fill-opacity': 0.25
+        }
+      });
+
+      // Wave overlay — same polygon, deep red, fades in from T+15
+      // Sits on top of inundation-fill to simulate water inundation
+      map.addLayer({
+        id: 'inundation-wave',
+        type: 'fill',
+        source: 'inundation',
+        paint: {
+          'fill-color': '#A32D2D',
+          'fill-opacity': 0
         }
       });
 
@@ -510,33 +502,6 @@
         }
       });
 
-      // Wave advance source - starts as empty
-map.addSource('wave-clip', {
-  type: 'geojson',
-  data: {
-    type: 'Feature',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-124.1, 45.9],
-        [-124.1, 46.05],
-        [-124.1, 46.05],
-        [-124.1, 45.9],
-        [-124.1, 45.9]
-      ]]
-    }
-  }
-});
-
-map.addLayer({
-  id: 'inundation-wave',
-  type: 'fill',
-  source: 'wave-clip',
-  paint: {
-    'fill-color': '#A32D2D',
-    'fill-opacity': 0.75
-  }
-});
       map.addSource('routes', {
         type: 'geojson',
         data: 'data/evac_routes_n.geojson'
@@ -618,7 +583,6 @@ map.addLayer({
       map.on('mouseenter', 'assembly-points', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
-
       map.on('mouseleave', 'assembly-points', () => {
         map.getCanvas().style.cursor = '';
       });
@@ -641,7 +605,6 @@ map.addLayer({
       map.on('mouseenter', 'critical-buildings', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
-
       map.on('mouseleave', 'critical-buildings', () => {
         map.getCanvas().style.cursor = '';
       });
