@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet"/>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
@@ -93,26 +94,18 @@
       margin-bottom: 6px;
     }
 
-    /* Color legend strip */
-    .color-strip-wrap {
-      margin-bottom: 10px;
-    }
+    .color-strip-wrap { margin-bottom: 10px; }
 
     .color-strip {
       height: 8px;
       border-radius: 4px;
       background: linear-gradient(
         to right,
-        #F0A500 0%,
-        #F0A500 17%,
-        #E8650A 17%,
-        #E8650A 33%,
-        #E24B4A 33%,
-        #E24B4A 50%,
-        #A32D2D 50%,
-        #A32D2D 67%,
-        #7B0000 67%,
-        #7B0000 100%
+        #F0A500 0%, #F0A500 17%,
+        #E8650A 17%, #E8650A 33%,
+        #E24B4A 33%, #E24B4A 50%,
+        #A32D2D 50%, #A32D2D 67%,
+        #7B0000 67%, #7B0000 100%
       );
       margin-bottom: 3px;
     }
@@ -124,10 +117,7 @@
       color: #888;
     }
 
-    .btn-row {
-      display: flex;
-      gap: 6px;
-    }
+    .btn-row { display: flex; gap: 6px; }
 
     .btn {
       flex: 1;
@@ -165,6 +155,16 @@
     }
 
     .phase-dot.active { background: #E24B4A; }
+
+    /* Legend assembly pulse */
+    @keyframes legendPulse {
+      0%, 100% { box-shadow: 0 0 0 1px #3B6D11, 0 0 0 3px rgba(59,109,17,0.3); }
+      50% { box-shadow: 0 0 0 1px #3B6D11, 0 0 0 6px rgba(59,109,17,0.1); }
+    }
+
+    .legend-circle-pulse {
+      animation: legendPulse 1.2s ease-in-out infinite;
+    }
 
     #legend {
       position: absolute;
@@ -208,6 +208,12 @@
       border: 2px solid #fff;
       flex-shrink: 0;
       box-shadow: 0 0 0 1px #3B6D11;
+    }
+
+    #legend-assembly-label {
+      font-size: 11px;
+      color: #444;
+      transition: color 0.3s;
     }
   </style>
 </head>
@@ -274,8 +280,8 @@
       Evacuation routes
     </div>
     <div class="legend-item">
-      <div class="legend-circle" style="background:#3B6D11;"></div>
-      Assembly areas
+      <div class="legend-circle" id="legend-assembly-dot" style="background:#3B6D11;"></div>
+      <span id="legend-assembly-label">Assembly areas</span>
     </div>
     <div style="font-size:10px; font-weight:500; color:#666; margin: 8px 0 4px 0;">Critical Facilities</div>
     <div class="legend-item">
@@ -326,6 +332,9 @@
       zoom: 13
     });
 
+    // Seaside bounding box for critical facilities filter
+    const SEASIDE_BOUNDS = [-124.02, 45.95, -123.88, 46.05];
+
     const TOTAL_MINUTES = 30;
     let currentMinute = 0;
     let playing = false;
@@ -334,14 +343,20 @@
     let pulseRaf = null;
     let pulseSize = 10;
     let pulseDir = 1;
-    let animActive = false;
+    let inZoneIds = [];        // feature ids inside inundation zone
+    let criticalGeoJSON = null; // stored for in-zone check
+    let inundationPolygon = null; // stored for spatial check
+    let legendPulsing = false;
+
+    // Wave surge timing — pulses every ~8 seconds of sim time after T+15
+    const WAVE_SURGE_PERIOD = 8;
 
     const phases = [
       {
         min: 0,
         label: 'Earthquake',
         text: 'Violent shaking begins. This is your only warning — start moving to high ground immediately.',
-        fillColor: '#F0A500',
+        fillColor: [0xF0, 0xA5, 0x00],
         fillOpacity: 0.25,
         waveOpacity: 0
       },
@@ -349,7 +364,7 @@
         min: 5,
         label: 'Ground Subsidence',
         text: 'The coastline drops 3–6 feet as the fault releases. Low areas begin flooding before any wave arrives.',
-        fillColor: '#E8650A',
+        fillColor: [0xE8, 0x65, 0x0A],
         fillOpacity: 0.4,
         waveOpacity: 0
       },
@@ -357,27 +372,63 @@
         min: 15,
         label: 'Wave 1 Arrives',
         text: 'First tsunami wave reaches shore. Inundation of low-lying Seaside begins. Anyone in the hazard zone is in extreme danger.',
-        fillColor: '#E24B4A',
+        fillColor: [0xE2, 0x4B, 0x4A],
         fillOpacity: 0.65,
-        waveOpacity: 0.5
+        waveOpacity: 0.45
       },
       {
         min: 20,
         label: 'Wave 2 — Most Powerful',
         text: 'The second wave is often the largest. Stay at assembly areas. Do not attempt to return.',
-        fillColor: '#A32D2D',
+        fillColor: [0xA3, 0x2D, 0x2D],
         fillOpacity: 0.8,
-        waveOpacity: 0.75
+        waveOpacity: 0.7
       },
       {
         min: 25,
         label: 'Continued Danger',
         text: 'Waves continue arriving every 10–45 minutes. Do not return for at least 12 hours. Wait for NOAA all-clear.',
-        fillColor: '#7B0000',
+        fillColor: [0x7B, 0x00, 0x00],
         fillOpacity: 0.85,
-        waveOpacity: 0.85
+        waveOpacity: 0.82
       }
     ];
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function lerpColor(a, b, t) {
+      return [
+        Math.round(lerp(a[0], b[0], t)),
+        Math.round(lerp(a[1], b[1], t)),
+        Math.round(lerp(a[2], b[2], t))
+      ];
+    }
+
+    function toHex(rgb) {
+      return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+
+    function getInterpolated(minute) {
+      let phaseA = phases[0];
+      let phaseB = phases[0];
+      for (let i = 0; i < phases.length - 1; i++) {
+        if (minute >= phases[i].min && minute < phases[i + 1].min) {
+          phaseA = phases[i];
+          phaseB = phases[i + 1];
+        }
+      }
+      if (minute >= phases[phases.length - 1].min) {
+        phaseA = phaseB = phases[phases.length - 1];
+      }
+      const t = phaseA === phaseB ? 1 :
+        (minute - phaseA.min) / (phaseB.min - phaseA.min);
+
+      return {
+        fillColor: toHex(lerpColor(phaseA.fillColor, phaseB.fillColor, t)),
+        fillOpacity: lerp(phaseA.fillOpacity, phaseB.fillOpacity, t),
+        waveOpacity: lerp(phaseA.waveOpacity, phaseB.waveOpacity, t)
+      };
+    }
 
     function getPhase(minute) {
       let phase = phases[0];
@@ -395,13 +446,9 @@
       return idx;
     }
 
-    function lerp(a, b, t) {
-      return a + (b - a) * t;
-    }
-
-    // Pulse animation for assembly areas
+    // Pulse assembly areas
     function pulseTick() {
-      pulseSize += 0.2 * pulseDir;
+      pulseSize += 0.25 * pulseDir;
       if (pulseSize >= 14) pulseDir = -1;
       if (pulseSize <= 8) pulseDir = 1;
       map.setPaintProperty('assembly-points', 'circle-radius', pulseSize);
@@ -414,59 +461,64 @@
     }
 
     function stopPulse(finalRadius) {
-      if (pulseRaf) cancelAnimationFrame(pulseRaf);
-      pulseRaf = null;
+      if (pulseRaf) { cancelAnimationFrame(pulseRaf); pulseRaf = null; }
       map.setPaintProperty('assembly-points', 'circle-radius', finalRadius);
     }
 
+    // Legend assembly dot update
+    function setLegendPulsing(active) {
+      const dot = document.getElementById('legend-assembly-dot');
+      const label = document.getElementById('legend-assembly-label');
+      if (active && !legendPulsing) {
+        dot.style.background = '#ffffff';
+        dot.style.boxShadow = '0 0 0 2px #3B6D11';
+        dot.classList.add('legend-circle-pulse');
+        label.textContent = 'Assembly areas — EVACUATE TO HERE';
+        label.style.color = '#3B6D11';
+        label.style.fontWeight = '600';
+        legendPulsing = true;
+      } else if (!active && legendPulsing) {
+        dot.style.background = '#3B6D11';
+        dot.style.boxShadow = '0 0 0 1px #3B6D11';
+        dot.classList.remove('legend-circle-pulse');
+        label.textContent = 'Assembly areas';
+        label.style.color = '#444';
+        label.style.fontWeight = 'normal';
+        legendPulsing = false;
+      }
+    }
+
     function updateMap(minute) {
-      // Find surrounding phases for interpolation
-      let phaseA = phases[0];
-      let phaseB = phases[0];
-      for (let i = 0; i < phases.length - 1; i++) {
-        if (minute >= phases[i].min && minute < phases[i + 1].min) {
-          phaseA = phases[i];
-          phaseB = phases[i + 1];
-        }
+      const interp = getInterpolated(minute);
+
+      // Smooth continuous color interpolation
+      map.setPaintProperty('inundation-fill', 'fill-color', interp.fillColor);
+      map.setPaintProperty('inundation-fill', 'fill-opacity', interp.fillOpacity);
+
+      // Wave surge — base opacity + sinusoidal pulse after T+15
+      let waveOp = interp.waveOpacity;
+      if (minute >= 15) {
+        const surgeT = ((minute - 15) % WAVE_SURGE_PERIOD) / WAVE_SURGE_PERIOD;
+        const surge = Math.sin(surgeT * Math.PI * 2) * 0.08;
+        waveOp = Math.min(1, Math.max(0, waveOp + surge));
       }
-      if (minute >= phases[phases.length - 1].min) {
-        phaseA = phaseB = phases[phases.length - 1];
-      }
+      map.setPaintProperty('inundation-wave', 'fill-opacity', waveOp);
 
-      const t = phaseA === phaseB ? 1 :
-        (minute - phaseA.min) / (phaseB.min - phaseA.min);
-
-      const opacity = lerp(phaseA.fillOpacity, phaseB.fillOpacity, t);
-      const waveOpacity = lerp(phaseA.waveOpacity, phaseB.waveOpacity, t);
-      const fillColor = t > 0.5 ? phaseB.fillColor : phaseA.fillColor;
-
-      map.setPaintProperty('inundation-fill', 'fill-color', fillColor);
-      map.setPaintProperty('inundation-fill', 'fill-opacity', opacity);
-      map.setPaintProperty('inundation-wave', 'fill-opacity', waveOpacity);
-
-      // Evacuation routes: highlight early (T+0–5), fade as wave approaches (T+5–15), gone after T+15
-      let routeOpacity, routeWidth, routeColor;
+      // Evacuation routes: highlight → fade → gone
       if (minute < 5) {
-        // Urgent — bright and thick
-        routeOpacity = 1;
-        routeWidth = 5;
-        routeColor = '#FFFF00';
+        map.setPaintProperty('evac-routes', 'line-opacity', 1);
+        map.setPaintProperty('evac-routes', 'line-width', 5);
+        map.setPaintProperty('evac-routes', 'line-color', '#FFFF00');
       } else if (minute < 15) {
-        // Fading — window is closing
-        const fadePct = (minute - 5) / 10;
-        routeOpacity = lerp(1, 0.1, fadePct);
-        routeWidth = lerp(5, 2, fadePct);
-        routeColor = '#FFFF00';
+        const t = (minute - 5) / 10;
+        map.setPaintProperty('evac-routes', 'line-opacity', lerp(1, 0.08, t));
+        map.setPaintProperty('evac-routes', 'line-width', lerp(5, 1.5, t));
+        map.setPaintProperty('evac-routes', 'line-color', '#FFFF00');
       } else {
-        // Water has arrived — routes gone
-        routeOpacity = 0.05;
-        routeWidth = 1;
-        routeColor = '#FFFF00';
+        map.setPaintProperty('evac-routes', 'line-opacity', 0.05);
+        map.setPaintProperty('evac-routes', 'line-width', 1);
+        map.setPaintProperty('evac-routes', 'line-color', '#FFFF00');
       }
-
-      map.setPaintProperty('evac-routes', 'line-opacity', routeOpacity);
-      map.setPaintProperty('evac-routes', 'line-width', routeWidth);
-      map.setPaintProperty('evac-routes', 'line-color', routeColor);
 
       // Assembly areas: pulse white before T+15, static white after
       if (minute < 15) {
@@ -474,16 +526,30 @@
         map.setPaintProperty('assembly-points', 'circle-stroke-color', '#3B6D11');
         map.setPaintProperty('assembly-points', 'circle-stroke-width', 3);
         if (!pulseRaf) startPulse();
+        setLegendPulsing(true);
       } else {
         stopPulse(12);
         map.setPaintProperty('assembly-points', 'circle-color', '#ffffff');
         map.setPaintProperty('assembly-points', 'circle-stroke-color', '#3B6D11');
         map.setPaintProperty('assembly-points', 'circle-stroke-width', 3);
+        setLegendPulsing(false);
+      }
+
+      // Critical facilities in zone fade as wave opacity increases
+      if (minute >= 15 && inZoneIds.length > 0) {
+        const fadePct = Math.min((minute - 15) / 10, 1);
+        const inZoneOpacity = lerp(1, 0.08, fadePct);
+
+        // Update the two-source layer opacity via filter-based approach
+        map.setPaintProperty('critical-inzone', 'circle-opacity', inZoneOpacity);
+        map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', inZoneOpacity);
+      } else {
+        map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
+        map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
       }
     }
 
     function resetMapLayers() {
-      // Restore all layers to default state
       map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
       map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
       map.setPaintProperty('inundation-wave', 'fill-opacity', 0);
@@ -494,6 +560,9 @@
       map.setPaintProperty('assembly-points', 'circle-color', '#3B6D11');
       map.setPaintProperty('assembly-points', 'circle-stroke-color', '#ffffff');
       map.setPaintProperty('assembly-points', 'circle-stroke-width', 2);
+      map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
+      map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
+      setLegendPulsing(false);
     }
 
     function updateUI(minute) {
@@ -502,12 +571,10 @@
       document.getElementById('clock').textContent =
         `${mins}m ${secs.toString().padStart(2, '0')}s`;
       document.getElementById('timeline-slider').value = minute;
-
       const phase = getPhase(minute);
       const phaseIdx = getPhaseIndex(minute);
       document.getElementById('phase-label').textContent = phase.label;
       document.getElementById('phase-text').textContent = phase.text;
-
       for (let i = 0; i < 5; i++) {
         document.getElementById(`dot${i}`)
           .classList.toggle('active', i <= phaseIdx);
@@ -554,7 +621,6 @@
     }
 
     function startAnim() {
-      animActive = true;
       document.getElementById('info-view').style.display = 'none';
       document.getElementById('anim-view').style.display = 'block';
       currentMinute = 0;
@@ -563,7 +629,6 @@
     }
 
     function resetAnim() {
-      animActive = false;
       playing = false;
       if (raf) cancelAnimationFrame(raf);
       document.getElementById('play-btn').textContent = '▶ Play';
@@ -573,8 +638,27 @@
       resetMapLayers();
     }
 
+    // Spatial check: which critical facilities are inside inundation zone?
+    function checkInZone(criticalData, inundationData) {
+      const ids = [];
+      // Combine all inundation polygons into one feature collection
+      criticalData.features.forEach((feature, idx) => {
+        if (!feature.geometry) return;
+        try {
+          const inside = inundationData.features.some(poly => {
+            try {
+              return turf.booleanPointInPolygon(feature, poly);
+            } catch(e) { return false; }
+          });
+          if (inside) ids.push(idx);
+        } catch(e) {}
+      });
+      return ids;
+    }
+
     map.on('load', () => {
 
+      // Load inundation zone
       map.addSource('inundation', {
         type: 'geojson',
         data: 'data/DOGAMI_Tsunami_inundation.geojson'
@@ -584,33 +668,24 @@
         id: 'inundation-fill',
         type: 'fill',
         source: 'inundation',
-        paint: {
-          'fill-color': '#F0A500',
-          'fill-opacity': 0.25
-        }
+        paint: { 'fill-color': '#F0A500', 'fill-opacity': 0.25 }
       });
 
-      // Wave overlay — same polygon, fades in from T+15
       map.addLayer({
         id: 'inundation-wave',
         type: 'fill',
         source: 'inundation',
-        paint: {
-          'fill-color': '#A32D2D',
-          'fill-opacity': 0
-        }
+        paint: { 'fill-color': '#A32D2D', 'fill-opacity': 0 }
       });
 
       map.addLayer({
         id: 'inundation-outline',
         type: 'line',
         source: 'inundation',
-        paint: {
-          'line-color': '#A32D2D',
-          'line-width': 2
-        }
+        paint: { 'line-color': '#A32D2D', 'line-width': 2 }
       });
 
+      // Evacuation routes
       map.addSource('routes', {
         type: 'geojson',
         data: 'data/evac_routes_n.geojson'
@@ -627,6 +702,7 @@
         }
       });
 
+      // Assembly areas
       map.addSource('assembly', {
         type: 'geojson',
         data: 'data/assembly_areas.geojson'
@@ -644,20 +720,65 @@
         }
       });
 
-      map.addSource('critical', {
-        type: 'geojson',
-        data: 'data/CriticalFacili_facilities_JSON.geojson'
-      });
+      // Load critical facilities + run spatial check
+      const criticalUrl = 'data/CriticalFacili_facilities_JSON.geojson';
+      const inundationUrl = 'data/DOGAMI_Tsunami_inundation.geojson';
 
-      map.addLayer({
-        id: 'critical-buildings',
-        type: 'circle',
-        source: 'critical',
-        paint: {
+      Promise.all([
+        fetch(criticalUrl).then(r => r.json()),
+        fetch(inundationUrl).then(r => r.json())
+      ]).then(([criticalData, inundationData]) => {
+
+        // Filter to Seaside bounding box
+        const [west, south, east, north] = SEASIDE_BOUNDS;
+        const filtered = {
+          type: 'FeatureCollection',
+          features: criticalData.features.filter(f => {
+            if (!f.geometry || !f.geometry.coordinates) return false;
+            const [lng, lat] = f.geometry.coordinates;
+            return lng >= west && lng <= east && lat >= south && lat <= north;
+          })
+        };
+
+        // Tag each feature with whether it's inside the inundation zone
+        const taggedFeatures = filtered.features.map((f, idx) => {
+          let insideZone = false;
+          try {
+            insideZone = inundationData.features.some(poly => {
+              try { return turf.booleanPointInPolygon(f, poly); }
+              catch(e) { return false; }
+            });
+          } catch(e) {}
+          return {
+            ...f,
+            properties: { ...f.properties, _inZone: insideZone, _idx: idx }
+          };
+        });
+
+        const taggedGeoJSON = { type: 'FeatureCollection', features: taggedFeatures };
+
+        // Out-of-zone facilities — always visible, never fade
+        map.addSource('critical-outzone', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: taggedFeatures.filter(f => !f.properties._inZone)
+          }
+        });
+
+        // In-zone facilities — fade during animation
+        map.addSource('critical-inzone', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: taggedFeatures.filter(f => f.properties._inZone)
+          }
+        });
+
+        const circlePaint = {
           'circle-radius': 7,
           'circle-color': [
-            'match',
-            ['get', 'Site_Type'],
+            'match', ['get', 'Site_Type'],
             'HOSPITAL', '#E24B4A',
             'SCHOOL', '#F0A500',
             'LAW ENFORCEMENT', '#0057A8',
@@ -671,9 +792,67 @@
           ],
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff'
-        }
+        };
+
+        map.addLayer({
+          id: 'critical-outzone',
+          type: 'circle',
+          source: 'critical-outzone',
+          paint: circlePaint
+        });
+
+        map.addLayer({
+          id: 'critical-inzone',
+          type: 'circle',
+          source: 'critical-inzone',
+          paint: { ...circlePaint }
+        });
+
+        // Popups for both layers
+        ['critical-outzone', 'critical-inzone'].forEach(layerId => {
+          map.on('click', layerId, (e) => {
+            const name = e.features[0].properties.Name || 'Critical Facility';
+            const type = e.features[0].properties.Site_Type || '';
+            new mapboxgl.Popup()
+              .setLngLat(e.lngLat)
+              .setHTML(`
+                <strong>${name}</strong><br/>
+                <span style="font-size:11px; color:#444; max-width:160px; display:block;">
+                  ${type}<br/>
+                  This facility is within or near the tsunami inundation zone.
+                </span>
+              `)
+              .addTo(map);
+          });
+          map.on('mouseenter', layerId, () => {
+            map.getCanvas().style.cursor = 'pointer';
+          });
+          map.on('mouseleave', layerId, () => {
+            map.getCanvas().style.cursor = '';
+          });
+        });
+
+      }).catch(err => {
+        console.error('Error loading data for spatial check:', err);
+        // Fallback — load critical facilities without zone distinction
+        map.addSource('critical-inzone', {
+          type: 'geojson',
+          data: criticalUrl
+        });
+        map.addLayer({
+          id: 'critical-inzone',
+          type: 'circle',
+          source: 'critical-inzone',
+          paint: {
+            'circle-radius': 7,
+            'circle-color': '#888888',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff'
+          }
+        });
       });
 
+      // Assembly popups
       map.on('click', 'assembly-points', (e) => {
         const name = e.features[0].properties.Location || 'Assembly Area';
         new mapboxgl.Popup()
@@ -693,28 +872,6 @@
         map.getCanvas().style.cursor = 'pointer';
       });
       map.on('mouseleave', 'assembly-points', () => {
-        map.getCanvas().style.cursor = '';
-      });
-
-      map.on('click', 'critical-buildings', (e) => {
-        const name = e.features[0].properties.Name || 'Critical Facility';
-        const type = e.features[0].properties.Site_Type || '';
-        new mapboxgl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`
-            <strong>${name}</strong><br/>
-            <span style="font-size:11px; color:#444; max-width:160px; display:block;">
-              ${type}<br/>
-              This facility is within or near the tsunami inundation zone.
-            </span>
-          `)
-          .addTo(map);
-      });
-
-      map.on('mouseenter', 'critical-buildings', () => {
-        map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', 'critical-buildings', () => {
         map.getCanvas().style.cursor = '';
       });
 
