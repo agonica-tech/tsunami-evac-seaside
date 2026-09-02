@@ -9,296 +9,563 @@
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-    #info-panel {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 14px 16px;
-  border-radius: 8px;
-  max-width: 260px;
-  font-family: sans-serif;
-  z-index: 1;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
 
-#info-panel h1 {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 6px 0;
-  color: #111;
-}
+    #panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 14px 16px;
+      border-radius: 8px;
+      max-width: 260px;
+      font-family: sans-serif;
+      z-index: 1;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
 
-#info-panel p {
-  font-size: 12px;
-  color: #444;
-  margin: 0 0 4px 0;
-  line-height: 1.5;
-}
+    #panel h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 6px 0;
+      color: #111;
+    }
 
-#info-panel .source {
-  font-size: 10px;
-  color: #888;
-  margin-top: 8px;
-}
+    #panel p {
+      font-size: 12px;
+      color: #444;
+      margin: 0 0 4px 0;
+      line-height: 1.5;
+    }
+
+    #panel .source {
+      font-size: 10px;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    /* Animation panel elements */
+    #anim-view { display: none; }
+    #info-view { display: block; }
+
+    .clock {
+      font-size: 26px;
+      font-weight: 500;
+      color: #111;
+      text-align: center;
+      margin: 8px 0 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clock-label {
+      font-size: 10px;
+      color: #888;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .phase-text {
+      font-size: 11px;
+      color: #444;
+      line-height: 1.5;
+      min-height: 48px;
+      margin-bottom: 10px;
+    }
+
+    .phase-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #111;
+      margin-bottom: 4px;
+    }
+
+    #timeline-slider {
+      width: 100%;
+      margin: 8px 0;
+      accent-color: #E24B4A;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 7px 0;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid rgba(0,0,0,0.2);
+      background: transparent;
+      color: #111;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: #E24B4A;
+      color: #fff;
+      border-color: #E24B4A;
+    }
+
+    .btn.primary:hover { background: #c73a39; }
+    .btn:hover { background: #f5f5f5; }
+
+    #phase-indicator {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .phase-dot {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: #ddd;
+      transition: background 0.3s;
+    }
+
+    .phase-dot.active { background: #E24B4A; }
+
     #legend {
-  position: absolute;
-  bottom: 30px;
-  left: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-family: sans-serif;
-  z-index: 1;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
+      position: absolute;
+      bottom: 30px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: sans-serif;
+      z-index: 1;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
 
-#legend h3 {
-  font-size: 12px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #111;
-}
+    #legend h3 {
+      font-size: 12px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      color: #111;
+    }
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: #444;
-  margin-bottom: 5px;
-}
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #444;
+      margin-bottom: 5px;
+    }
 
-.legend-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
+    .legend-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
 
-.legend-line {
-  width: 24px;
-  height: 3px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.legend-circle {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 1px #3B6D11;
-}
+    .legend-circle {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px #3B6D11;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="info-panel">
-  <h1>Seaside, OR — Tsunami Evacuation</h1>
-  <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
-  <p class="source">Data: DOGAMI 2013 · Mapbox GL JS</p>
-</div>
+
+  <div id="panel">
+    <!-- Info view (default) -->
+    <div id="info-view">
+      <h1>Seaside, OR — Tsunami Evacuation</h1>
+      <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
+      <p class="source">Data: DOGAMI 2013 · Mapbox GL JS</p>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn primary" onclick="startAnim()">▶ Simulate Event</button>
+      </div>
+    </div>
+
+    <!-- Animation view -->
+    <div id="anim-view">
+      <h1>Cascadia M9.0 Simulation</h1>
+      <div id="phase-indicator">
+        <div class="phase-dot" id="dot0"></div>
+        <div class="phase-dot" id="dot1"></div>
+        <div class="phase-dot" id="dot2"></div>
+        <div class="phase-dot" id="dot3"></div>
+        <div class="phase-dot" id="dot4"></div>
+      </div>
+      <div class="clock" id="clock">0m 00s</div>
+      <div class="clock-label">elapsed since earthquake</div>
+      <div class="phase-label" id="phase-label">Earthquake</div>
+      <div class="phase-text" id="phase-text">Violent shaking begins. This is your only warning — start moving to high ground immediately.</div>
+      <input type="range" id="timeline-slider" min="0" max="30" value="0" oninput="onSlider(this.value)"/>
+      <div class="slider-labels">
+        <span>0 min</span>
+        <span>15 min</span>
+        <span>30 min</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="play-btn" onclick="togglePlay()">▶ Play</button>
+        <button class="btn" onclick="resetAnim()">Reset</button>
+      </div>
+    </div>
+  </div>
+
   <div id="legend">
-  <h3>Legend</h3>
-  <div class="legend-item">
-    <div class="legend-swatch" style="background:#F0A500; opacity:0.5;"></div>
-    Tsunami inundation zone
-  </div>
-  <div class="legend-item">
-    <div style="width:24px; flex-shrink:0; border-top: 3px dashed #3B6D11;"></div>
-    Evacuation routes
-  </div>
-  <div class="legend-item">
-    <div class="legend-circle" style="background:#3B6D11;"></div>
-    Assembly areas
-  </div>
+    <h3>Legend</h3>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#F0A500; opacity:0.5;"></div>
+      Tsunami inundation zone
+    </div>
+    <div class="legend-item">
+      <div style="width:24px; flex-shrink:0; border-top: 3px dashed #3B6D11;"></div>
+      Evacuation routes
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#3B6D11;"></div>
+      Assembly areas
+    </div>
     <div style="font-size:10px; font-weight:500; color:#666; margin: 8px 0 4px 0;">Critical Facilities</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#E24B4A;"></div>
-  Hospital
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#F0A500;"></div>
-  School
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#0057A8;"></div>
-  Law Enforcement
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#E8650A;"></div>
-  Fire Department
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#8B4513;"></div>
-  Bridge
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#9B59B6;"></div>
-  Airport
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#00BCD4;"></div>
-  Lighthouse
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#2E7D32;"></div>
-  Emergency Management
-</div>
-<div class="legend-item">
-  <div class="legend-circle" style="background:#00838F;"></div>
-  Coast Guard
-</div>
-</div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#E24B4A;"></div>
+      Hospital
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#F0A500;"></div>
+      School
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#0057A8;"></div>
+      Law Enforcement
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#E8650A;"></div>
+      Fire Department
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#8B4513;"></div>
+      Bridge
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#9B59B6;"></div>
+      Airport
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#00BCD4;"></div>
+      Lighthouse
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#2E7D32;"></div>
+      Emergency Management
+    </div>
+    <div class="legend-item">
+      <div class="legend-circle" style="background:#00838F;"></div>
+      Coast Guard
+    </div>
+  </div>
+
   <script>
-mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
+    mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaHVhd2VpbGwiLCJhIjoiY21ubzg5dXF2MjE4NDJ3b2FkdDd3NXQ1YiJ9.9f8C-kRIsyAMjKateu0tDA';
 
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/streets-v12',
-  center: [-123.9229, 45.9934],
-  zoom: 13
-});
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [-123.9229, 45.9934],
+      zoom: 13
+    });
 
-map.on('load', () => {
+    // --- Animation state ---
+    const TOTAL_MINUTES = 30;
+    let currentMinute = 0;
+    let playing = false;
+    let raf = null;
+    let lastTs = null;
 
-  map.addSource('inundation', {
-    type: 'geojson',
-    data: 'data/DOGAMI_Tsunami_inundation.geojson'
-  });
+    const phases = [
+      {
+        min: 0,
+        label: 'Earthquake',
+        text: 'Violent shaking begins. This is your only warning — start moving to high ground immediately.',
+        fillColor: '#F0A500',
+        fillOpacity: 0.25
+      },
+      {
+        min: 5,
+        label: 'Ground Subsidence',
+        text: 'The coastline drops 3–6 feet as the fault releases. Low areas begin flooding before any wave arrives.',
+        fillColor: '#E8650A',
+        fillOpacity: 0.4
+      },
+      {
+        min: 15,
+        label: 'Wave 1 Arrives',
+        text: 'First tsunami wave reaches shore. Inundation of low-lying Seaside begins. Anyone in the hazard zone is in extreme danger.',
+        fillColor: '#E24B4A',
+        fillOpacity: 0.65
+      },
+      {
+        min: 20,
+        label: 'Wave 2 — Most Powerful',
+        text: 'The second wave is often the largest. Stay at assembly areas. Do not attempt to return.',
+        fillColor: '#A32D2D',
+        fillOpacity: 0.8
+      },
+      {
+        min: 25,
+        label: 'Continued Danger',
+        text: 'Waves continue arriving every 10–45 minutes. Do not return for at least 12 hours. Wait for NOAA all-clear.',
+        fillColor: '#7B0000',
+        fillOpacity: 0.85
+      }
+    ];
 
-  map.addLayer({
-    id: 'inundation-fill',
-    type: 'fill',
-    source: 'inundation',
-    paint: {
-      'fill-color': '#F0A500',
-      'fill-opacity': 0.25
+    function getPhase(minute) {
+      let phase = phases[0];
+      for (let i = 0; i < phases.length; i++) {
+        if (minute >= phases[i].min) phase = phases[i];
+      }
+      return phase;
     }
-  });
 
-  map.addLayer({
-    id: 'inundation-outline',
-    type: 'line',
-    source: 'inundation',
-    paint: {
-      'line-color': '#A32D2D',
-      'line-width': 2
+    function getPhaseIndex(minute) {
+      let idx = 0;
+      for (let i = 0; i < phases.length; i++) {
+        if (minute >= phases[i].min) idx = i;
+      }
+      return idx;
     }
-  });
 
-  map.addSource('routes', {
-    type: 'geojson',
-    data: 'data/evac_routes_n.geojson'
-  });
-
-  map.addLayer({
-    id: 'evac-routes',
-    type: 'line',
-    source: 'routes',
-    paint: {
-      'line-color': '#3B6D11',
-      'line-width': 3,
-      'line-dasharray': [2, 1]
+    function updateMap(minute) {
+      const phase = getPhase(minute);
+      map.setPaintProperty('inundation-fill', 'fill-color', phase.fillColor);
+      map.setPaintProperty('inundation-fill', 'fill-opacity', phase.fillOpacity);
     }
-  });
 
-  map.addSource('assembly', {
-    type: 'geojson',
-    data: 'data/assembly_areas.geojson'
-  });
+    function updateUI(minute) {
+      const mins = Math.floor(minute);
+      const secs = Math.floor((minute % 1) * 60);
+      document.getElementById('clock').textContent = `${mins}m ${secs.toString().padStart(2,'0')}s`;
+      document.getElementById('timeline-slider').value = minute;
 
-  map.addLayer({
-    id: 'assembly-points',
-    type: 'circle',
-    source: 'assembly',
-    paint: {
-      'circle-radius': 8,
-      'circle-color': '#3B6D11',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff'
+      const phase = getPhase(minute);
+      const phaseIdx = getPhaseIndex(minute);
+      document.getElementById('phase-label').textContent = phase.label;
+      document.getElementById('phase-text').textContent = phase.text;
+
+      // Update dots
+      for (let i = 0; i < 5; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.toggle('active', i <= phaseIdx);
+      }
     }
-  });
 
-  map.addSource('critical', {
-    type: 'geojson',
-    data: 'data/CriticalFacili_facilities_JSON.geojson'
-  });
-
-  map.addLayer({
-    id: 'critical-buildings',
-    type: 'circle',
-    source: 'critical',
-    paint: {
-      'circle-radius': 7,
-      'circle-color': [
-        'match',
-        ['get', 'Site_Type'],
-        'HOSPITAL', '#E24B4A',
-        'SCHOOL', '#F0A500',
-        'LAW ENFORCEMENT', '#0057A8',
-        'FIRE DEPARTMENT', '#E8650A',
-        'BRIDGE', '#8B4513',
-        'AIRPORT', '#9B59B6',
-        'LIGHTHOUSE', '#00BCD4',
-        'EMERGENCY MANAGEMENT', '#2E7D32',
-        'COAST GUARD', '#00838F',
-        '#888888'
-      ],
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff'
+    function tick(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      // 1 real second = 1 simulated minute
+      currentMinute = Math.min(currentMinute + dt, TOTAL_MINUTES);
+      updateMap(currentMinute);
+      updateUI(currentMinute);
+      if (currentMinute < TOTAL_MINUTES && playing) {
+        raf = requestAnimationFrame(tick);
+      } else if (currentMinute >= TOTAL_MINUTES) {
+        playing = false;
+        document.getElementById('play-btn').textContent = '▶ Play';
+      }
     }
-  });
 
-  map.on('click', 'assembly-points', (e) => {
-    const name = e.features[0].properties.Location || 'Assembly Area';
-    new mapboxgl.Popup()
-      .setLngLat(e.lngLat)
-      .setHTML(`
-        <strong>${name}</strong><br/>
-        <span style="font-size:11px; color:#444;">
-          Tsunami assembly area.<br/>
-          Do not return to inundation zone<br/>
-          until official all-clear.
-        </span>
-      `)
-      .addTo(map);
-  });
+    function togglePlay() {
+      playing = !playing;
+      const btn = document.getElementById('play-btn');
+      if (playing) {
+        btn.textContent = '⏸ Pause';
+        lastTs = null;
+        raf = requestAnimationFrame(tick);
+      } else {
+        btn.textContent = '▶ Play';
+        if (raf) cancelAnimationFrame(raf);
+      }
+    }
 
-  map.on('mouseenter', 'assembly-points', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
+    function onSlider(value) {
+      if (playing) {
+        playing = false;
+        document.getElementById('play-btn').textContent = '▶ Play';
+        if (raf) cancelAnimationFrame(raf);
+      }
+      currentMinute = parseFloat(value);
+      updateMap(currentMinute);
+      updateUI(currentMinute);
+    }
 
-  map.on('mouseleave', 'assembly-points', () => {
-    map.getCanvas().style.cursor = '';
-  });
+    function startAnim() {
+      document.getElementById('info-view').style.display = 'none';
+      document.getElementById('anim-view').style.display = 'block';
+      currentMinute = 0;
+      updateMap(0);
+      updateUI(0);
+    }
 
-  map.on('click', 'critical-buildings', (e) => {
-    const name = e.features[0].properties.Name || 'Critical Facility';
-    const type = e.features[0].properties.Site_Type || '';
-    new mapboxgl.Popup()
-      .setLngLat(e.lngLat)
-      .setHTML(`
-        <strong>${name}</strong><br/>
-        <span style="font-size:11px; color:#444; max-width:160px; display:block;">
-          ${type}<br/>
-          This facility is within or near the tsunami inundation zone.
-        </span>
-      `)
-      .addTo(map);
-  });
+    function resetAnim() {
+      playing = false;
+      if (raf) cancelAnimationFrame(raf);
+      document.getElementById('play-btn').textContent = '▶ Play';
+      document.getElementById('anim-view').style.display = 'none';
+      document.getElementById('info-view').style.display = 'block';
+      currentMinute = 0;
+      map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
+      map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
+    }
 
-  map.on('mouseenter', 'critical-buildings', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
+    map.on('load', () => {
 
-  map.on('mouseleave', 'critical-buildings', () => {
-    map.getCanvas().style.cursor = '';
-  });
+      map.addSource('inundation', {
+        type: 'geojson',
+        data: 'data/DOGAMI_Tsunami_inundation.geojson'
+      });
 
-}); 
+      map.addLayer({
+        id: 'inundation-fill',
+        type: 'fill',
+        source: 'inundation',
+        paint: {
+          'fill-color': '#F0A500',
+          'fill-opacity': 0.25
+        }
+      });
+
+      map.addLayer({
+        id: 'inundation-outline',
+        type: 'line',
+        source: 'inundation',
+        paint: {
+          'line-color': '#A32D2D',
+          'line-width': 2
+        }
+      });
+
+      map.addSource('routes', {
+        type: 'geojson',
+        data: 'data/evac_routes_n.geojson'
+      });
+
+      map.addLayer({
+        id: 'evac-routes',
+        type: 'line',
+        source: 'routes',
+        paint: {
+          'line-color': '#3B6D11',
+          'line-width': 3,
+          'line-dasharray': [2, 1]
+        }
+      });
+
+      map.addSource('assembly', {
+        type: 'geojson',
+        data: 'data/assembly_areas.geojson'
+      });
+
+      map.addLayer({
+        id: 'assembly-points',
+        type: 'circle',
+        source: 'assembly',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#3B6D11',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+
+      map.addSource('critical', {
+        type: 'geojson',
+        data: 'data/CriticalFacili_facilities_JSON.geojson'
+      });
+
+      map.addLayer({
+        id: 'critical-buildings',
+        type: 'circle',
+        source: 'critical',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': [
+            'match',
+            ['get', 'Site_Type'],
+            'HOSPITAL', '#E24B4A',
+            'SCHOOL', '#F0A500',
+            'LAW ENFORCEMENT', '#0057A8',
+            'FIRE DEPARTMENT', '#E8650A',
+            'BRIDGE', '#8B4513',
+            'AIRPORT', '#9B59B6',
+            'LIGHTHOUSE', '#00BCD4',
+            'EMERGENCY MANAGEMENT', '#2E7D32',
+            'COAST GUARD', '#00838F',
+            '#888888'
+          ],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+
+      map.on('click', 'assembly-points', (e) => {
+        const name = e.features[0].properties.Location || 'Assembly Area';
+        new mapboxgl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <strong>${name}</strong><br/>
+            <span style="font-size:11px; color:#444;">
+              Tsunami assembly area.<br/>
+              Do not return to inundation zone<br/>
+              until official all-clear.
+            </span>
+          `)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'assembly-points', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', 'assembly-points', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      map.on('click', 'critical-buildings', (e) => {
+        const name = e.features[0].properties.Name || 'Critical Facility';
+        const type = e.features[0].properties.Site_Type || '';
+        new mapboxgl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <strong>${name}</strong><br/>
+            <span style="font-size:11px; color:#444; max-width:160px; display:block;">
+              ${type}<br/>
+              This facility is within or near the tsunami inundation zone.
+            </span>
+          `)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'critical-buildings', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', 'critical-buildings', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+    }); // end map.on('load')
   </script>
 </body>
 </html>
