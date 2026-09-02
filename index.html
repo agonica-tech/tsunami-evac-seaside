@@ -69,7 +69,7 @@
       color: #444;
       line-height: 1.5;
       min-height: 52px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .phase-label {
@@ -81,7 +81,7 @@
 
     #timeline-slider {
       width: 100%;
-      margin: 8px 0;
+      margin: 8px 0 4px;
       accent-color: #E24B4A;
     }
 
@@ -90,7 +90,38 @@
       justify-content: space-between;
       font-size: 9px;
       color: #888;
+      margin-bottom: 6px;
+    }
+
+    /* Color legend strip */
+    .color-strip-wrap {
       margin-bottom: 10px;
+    }
+
+    .color-strip {
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(
+        to right,
+        #F0A500 0%,
+        #F0A500 17%,
+        #E8650A 17%,
+        #E8650A 33%,
+        #E24B4A 33%,
+        #E24B4A 50%,
+        #A32D2D 50%,
+        #A32D2D 67%,
+        #7B0000 67%,
+        #7B0000 100%
+      );
+      margin-bottom: 3px;
+    }
+
+    .color-strip-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: #888;
     }
 
     .btn-row {
@@ -184,7 +215,6 @@
   <div id="map"></div>
 
   <div id="panel">
-    <!-- Info view (default) -->
     <div id="info-view">
       <h1>Seaside, OR — Tsunami Evacuation</h1>
       <p>In a Cascadia Subduction Zone earthquake, tsunami waves reach Seaside in <strong>15–20 minutes</strong>. The earthquake is your only warning — evacuate immediately on foot.</p>
@@ -194,7 +224,6 @@
       </div>
     </div>
 
-    <!-- Animation view -->
     <div id="anim-view">
       <h1>Cascadia M9.0 Simulation</h1>
       <div id="phase-indicator">
@@ -208,12 +237,25 @@
       <div class="clock-label">elapsed since earthquake</div>
       <div class="phase-label" id="phase-label">Earthquake</div>
       <div class="phase-text" id="phase-text">Violent shaking begins. This is your only warning — start moving to high ground immediately.</div>
+
       <input type="range" id="timeline-slider" min="0" max="30" value="0" step="0.1" oninput="onSlider(this.value)"/>
       <div class="slider-labels">
         <span>0 min</span>
         <span>15 min</span>
         <span>30 min</span>
       </div>
+
+      <div class="color-strip-wrap">
+        <div class="color-strip"></div>
+        <div class="color-strip-labels">
+          <span>Quake</span>
+          <span>Subsidence</span>
+          <span>Wave 1</span>
+          <span>Wave 2</span>
+          <span>Danger</span>
+        </div>
+      </div>
+
       <div class="btn-row">
         <button class="btn primary" id="play-btn" onclick="togglePlay()">▶ Play</button>
         <button class="btn" onclick="resetAnim()">Reset</button>
@@ -284,12 +326,15 @@
       zoom: 13
     });
 
-    // --- Animation state ---
     const TOTAL_MINUTES = 30;
     let currentMinute = 0;
     let playing = false;
     let raf = null;
     let lastTs = null;
+    let pulseRaf = null;
+    let pulseSize = 10;
+    let pulseDir = 1;
+    let animActive = false;
 
     const phases = [
       {
@@ -350,13 +395,32 @@
       return idx;
     }
 
-    // Interpolate between two numbers
     function lerp(a, b, t) {
       return a + (b - a) * t;
     }
 
+    // Pulse animation for assembly areas
+    function pulseTick() {
+      pulseSize += 0.2 * pulseDir;
+      if (pulseSize >= 14) pulseDir = -1;
+      if (pulseSize <= 8) pulseDir = 1;
+      map.setPaintProperty('assembly-points', 'circle-radius', pulseSize);
+      pulseRaf = requestAnimationFrame(pulseTick);
+    }
+
+    function startPulse() {
+      if (pulseRaf) cancelAnimationFrame(pulseRaf);
+      pulseRaf = requestAnimationFrame(pulseTick);
+    }
+
+    function stopPulse(finalRadius) {
+      if (pulseRaf) cancelAnimationFrame(pulseRaf);
+      pulseRaf = null;
+      map.setPaintProperty('assembly-points', 'circle-radius', finalRadius);
+    }
+
     function updateMap(minute) {
-      // Find surrounding phases for smooth interpolation
+      // Find surrounding phases for interpolation
       let phaseA = phases[0];
       let phaseB = phases[0];
       for (let i = 0; i < phases.length - 1; i++) {
@@ -369,20 +433,67 @@
         phaseA = phaseB = phases[phases.length - 1];
       }
 
-      // Interpolation factor between phases
       const t = phaseA === phaseB ? 1 :
         (minute - phaseA.min) / (phaseB.min - phaseA.min);
 
-      // Smoothly interpolate opacity
       const opacity = lerp(phaseA.fillOpacity, phaseB.fillOpacity, t);
       const waveOpacity = lerp(phaseA.waveOpacity, phaseB.waveOpacity, t);
-
-      // Use phaseB color once past midpoint for snappier feel
       const fillColor = t > 0.5 ? phaseB.fillColor : phaseA.fillColor;
 
       map.setPaintProperty('inundation-fill', 'fill-color', fillColor);
       map.setPaintProperty('inundation-fill', 'fill-opacity', opacity);
       map.setPaintProperty('inundation-wave', 'fill-opacity', waveOpacity);
+
+      // Evacuation routes: highlight early (T+0–5), fade as wave approaches (T+5–15), gone after T+15
+      let routeOpacity, routeWidth, routeColor;
+      if (minute < 5) {
+        // Urgent — bright and thick
+        routeOpacity = 1;
+        routeWidth = 5;
+        routeColor = '#FFFF00';
+      } else if (minute < 15) {
+        // Fading — window is closing
+        const fadePct = (minute - 5) / 10;
+        routeOpacity = lerp(1, 0.1, fadePct);
+        routeWidth = lerp(5, 2, fadePct);
+        routeColor = '#FFFF00';
+      } else {
+        // Water has arrived — routes gone
+        routeOpacity = 0.05;
+        routeWidth = 1;
+        routeColor = '#FFFF00';
+      }
+
+      map.setPaintProperty('evac-routes', 'line-opacity', routeOpacity);
+      map.setPaintProperty('evac-routes', 'line-width', routeWidth);
+      map.setPaintProperty('evac-routes', 'line-color', routeColor);
+
+      // Assembly areas: pulse white before T+15, static white after
+      if (minute < 15) {
+        map.setPaintProperty('assembly-points', 'circle-color', '#ffffff');
+        map.setPaintProperty('assembly-points', 'circle-stroke-color', '#3B6D11');
+        map.setPaintProperty('assembly-points', 'circle-stroke-width', 3);
+        if (!pulseRaf) startPulse();
+      } else {
+        stopPulse(12);
+        map.setPaintProperty('assembly-points', 'circle-color', '#ffffff');
+        map.setPaintProperty('assembly-points', 'circle-stroke-color', '#3B6D11');
+        map.setPaintProperty('assembly-points', 'circle-stroke-width', 3);
+      }
+    }
+
+    function resetMapLayers() {
+      // Restore all layers to default state
+      map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
+      map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
+      map.setPaintProperty('inundation-wave', 'fill-opacity', 0);
+      map.setPaintProperty('evac-routes', 'line-opacity', 1);
+      map.setPaintProperty('evac-routes', 'line-width', 3);
+      map.setPaintProperty('evac-routes', 'line-color', '#3B6D11');
+      stopPulse(8);
+      map.setPaintProperty('assembly-points', 'circle-color', '#3B6D11');
+      map.setPaintProperty('assembly-points', 'circle-stroke-color', '#ffffff');
+      map.setPaintProperty('assembly-points', 'circle-stroke-width', 2);
     }
 
     function updateUI(minute) {
@@ -443,6 +554,7 @@
     }
 
     function startAnim() {
+      animActive = true;
       document.getElementById('info-view').style.display = 'none';
       document.getElementById('anim-view').style.display = 'block';
       currentMinute = 0;
@@ -451,15 +563,14 @@
     }
 
     function resetAnim() {
+      animActive = false;
       playing = false;
       if (raf) cancelAnimationFrame(raf);
       document.getElementById('play-btn').textContent = '▶ Play';
       document.getElementById('anim-view').style.display = 'none';
       document.getElementById('info-view').style.display = 'block';
       currentMinute = 0;
-      map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
-      map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
-      map.setPaintProperty('inundation-wave', 'fill-opacity', 0);
+      resetMapLayers();
     }
 
     map.on('load', () => {
@@ -469,7 +580,6 @@
         data: 'data/DOGAMI_Tsunami_inundation.geojson'
       });
 
-      // Base inundation fill — amber, transitions through phases
       map.addLayer({
         id: 'inundation-fill',
         type: 'fill',
@@ -480,8 +590,7 @@
         }
       });
 
-      // Wave overlay — same polygon, deep red, fades in from T+15
-      // Sits on top of inundation-fill to simulate water inundation
+      // Wave overlay — same polygon, fades in from T+15
       map.addLayer({
         id: 'inundation-wave',
         type: 'fill',
