@@ -347,10 +347,50 @@
     }
 
     function updateMap(minute) {
-      const phase = getPhase(minute);
-      map.setPaintProperty('inundation-fill', 'fill-color', phase.fillColor);
-      map.setPaintProperty('inundation-fill', 'fill-opacity', phase.fillOpacity);
-    }
+  const phase = getPhase(minute);
+
+  // Base inundation zone
+  map.setPaintProperty('inundation-fill', 'fill-color', phase.fillColor);
+  map.setPaintProperty('inundation-fill', 'fill-opacity', phase.fillOpacity);
+
+  // Wave advance — only active from T+15 onward
+  if (minute >= 15) {
+    // Wave travels from coast (-123.93) to inland (-123.88) over 10 minutes
+    const waveProgress = Math.min((minute - 15) / 10, 1);
+    const coastLine = -123.935;
+    const inlandLine = -123.88;
+    const waveFront = coastLine + (waveProgress * (inlandLine - coastLine));
+
+    map.getSource('wave-clip').setData({
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [-124.1, 45.9],
+          [waveFront, 45.9],
+          [waveFront, 46.05],
+          [-124.1, 46.05],
+          [-124.1, 45.9]
+        ]]
+      }
+    });
+  } else {
+    // Reset wave clip to empty
+    map.getSource('wave-clip').setData({
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [-124.1, 45.9],
+          [-124.1, 46.05],
+          [-124.1, 46.05],
+          [-124.1, 45.9],
+          [-124.1, 45.9]
+        ]]
+      }
+    });
+  }
+}
 
     function updateUI(minute) {
       const mins = Math.floor(minute);
@@ -418,19 +458,33 @@
       updateUI(0);
     }
 
-    function resetAnim() {
-      playing = false;
-      if (raf) cancelAnimationFrame(raf);
-      document.getElementById('play-btn').textContent = '▶ Play';
-      document.getElementById('anim-view').style.display = 'none';
-      document.getElementById('info-view').style.display = 'block';
-      currentMinute = 0;
-      map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
-      map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
+   function resetAnim() {
+  playing = false;
+  if (raf) cancelAnimationFrame(raf);
+  document.getElementById('play-btn').textContent = '▶ Play';
+  document.getElementById('anim-view').style.display = 'none';
+  document.getElementById('info-view').style.display = 'block';
+  currentMinute = 0;
+  map.setPaintProperty('inundation-fill', 'fill-color', '#F0A500');
+  map.setPaintProperty('inundation-fill', 'fill-opacity', 0.25);
+  map.getSource('wave-clip').setData({
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-124.1, 45.9],
+        [-124.1, 46.05],
+        [-124.1, 46.05],
+        [-124.1, 45.9],
+        [-124.1, 45.9]
+      ]]
     }
+  });
+}
 
     map.on('load', () => {
 
+      
       map.addSource('inundation', {
         type: 'geojson',
         data: 'data/DOGAMI_Tsunami_inundation.geojson'
@@ -456,6 +510,33 @@
         }
       });
 
+      // Wave advance source - starts as empty
+map.addSource('wave-clip', {
+  type: 'geojson',
+  data: {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-124.1, 45.9],
+        [-124.1, 46.05],
+        [-124.1, 46.05],
+        [-124.1, 45.9],
+        [-124.1, 45.9]
+      ]]
+    }
+  }
+});
+
+map.addLayer({
+  id: 'inundation-wave',
+  type: 'fill',
+  source: 'wave-clip',
+  paint: {
+    'fill-color': '#A32D2D',
+    'fill-opacity': 0.75
+  }
+});
       map.addSource('routes', {
         type: 'geojson',
         data: 'data/evac_routes_n.geojson'
