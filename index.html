@@ -156,10 +156,9 @@
 
     .phase-dot.active { background: #E24B4A; }
 
-    /* Legend assembly pulse */
     @keyframes legendPulse {
-      0%, 100% { box-shadow: 0 0 0 1px #3B6D11, 0 0 0 3px rgba(59,109,17,0.3); }
-      50% { box-shadow: 0 0 0 1px #3B6D11, 0 0 0 6px rgba(59,109,17,0.1); }
+      0%, 100% { box-shadow: 0 0 0 2px #3B6D11, 0 0 0 4px rgba(59,109,17,0.3); }
+      50% { box-shadow: 0 0 0 2px #3B6D11, 0 0 0 7px rgba(59,109,17,0.1); }
     }
 
     .legend-circle-pulse {
@@ -208,12 +207,6 @@
       border: 2px solid #fff;
       flex-shrink: 0;
       box-shadow: 0 0 0 1px #3B6D11;
-    }
-
-    #legend-assembly-label {
-      font-size: 11px;
-      color: #444;
-      transition: color 0.3s;
     }
   </style>
 </head>
@@ -332,10 +325,10 @@
       zoom: 13
     });
 
-    // Seaside bounding box for critical facilities filter
     const SEASIDE_BOUNDS = [-124.02, 45.95, -123.88, 46.05];
-
     const TOTAL_MINUTES = 30;
+    const WAVE_SURGE_PERIOD = 8;
+
     let currentMinute = 0;
     let playing = false;
     let raf = null;
@@ -343,13 +336,8 @@
     let pulseRaf = null;
     let pulseSize = 10;
     let pulseDir = 1;
-    let inZoneIds = [];        // feature ids inside inundation zone
-    let criticalGeoJSON = null; // stored for in-zone check
-    let inundationPolygon = null; // stored for spatial check
     let legendPulsing = false;
-
-    // Wave surge timing — pulses every ~8 seconds of sim time after T+15
-    const WAVE_SURGE_PERIOD = 8;
+    let layersReady = false; // flag — true once Promise.all resolves
 
     const phases = [
       {
@@ -422,7 +410,6 @@
       }
       const t = phaseA === phaseB ? 1 :
         (minute - phaseA.min) / (phaseB.min - phaseA.min);
-
       return {
         fillColor: toHex(lerpColor(phaseA.fillColor, phaseB.fillColor, t)),
         fillOpacity: lerp(phaseA.fillOpacity, phaseB.fillOpacity, t),
@@ -446,7 +433,6 @@
       return idx;
     }
 
-    // Pulse assembly areas
     function pulseTick() {
       pulseSize += 0.25 * pulseDir;
       if (pulseSize >= 14) pulseDir = -1;
@@ -465,7 +451,6 @@
       map.setPaintProperty('assembly-points', 'circle-radius', finalRadius);
     }
 
-    // Legend assembly dot update
     function setLegendPulsing(active) {
       const dot = document.getElementById('legend-assembly-dot');
       const label = document.getElementById('legend-assembly-label');
@@ -491,11 +476,11 @@
     function updateMap(minute) {
       const interp = getInterpolated(minute);
 
-      // Smooth continuous color interpolation
+      // Smooth inundation color
       map.setPaintProperty('inundation-fill', 'fill-color', interp.fillColor);
       map.setPaintProperty('inundation-fill', 'fill-opacity', interp.fillOpacity);
 
-      // Wave surge — base opacity + sinusoidal pulse after T+15
+      // Wave surge with sinusoidal pulse after T+15
       let waveOp = interp.waveOpacity;
       if (minute >= 15) {
         const surgeT = ((minute - 15) % WAVE_SURGE_PERIOD) / WAVE_SURGE_PERIOD;
@@ -504,7 +489,7 @@
       }
       map.setPaintProperty('inundation-wave', 'fill-opacity', waveOp);
 
-      // Evacuation routes: highlight → fade → gone
+      // Routes: highlight → fade → gone
       if (minute < 5) {
         map.setPaintProperty('evac-routes', 'line-opacity', 1);
         map.setPaintProperty('evac-routes', 'line-width', 5);
@@ -520,7 +505,7 @@
         map.setPaintProperty('evac-routes', 'line-color', '#FFFF00');
       }
 
-      // Assembly areas: pulse white before T+15, static white after
+      // Assembly: pulse white before T+15, static white after
       if (minute < 15) {
         map.setPaintProperty('assembly-points', 'circle-color', '#ffffff');
         map.setPaintProperty('assembly-points', 'circle-stroke-color', '#3B6D11');
@@ -535,17 +520,17 @@
         setLegendPulsing(false);
       }
 
-      // Critical facilities in zone fade as wave opacity increases
-      if (minute >= 15 && inZoneIds.length > 0) {
-        const fadePct = Math.min((minute - 15) / 10, 1);
-        const inZoneOpacity = lerp(1, 0.08, fadePct);
-
-        // Update the two-source layer opacity via filter-based approach
-        map.setPaintProperty('critical-inzone', 'circle-opacity', inZoneOpacity);
-        map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', inZoneOpacity);
-      } else {
-        map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
-        map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
+      // Critical facilities in zone — fade after T+15, only if layer exists
+      if (layersReady && map.getLayer('critical-inzone')) {
+        if (minute >= 15) {
+          const fadePct = Math.min((minute - 15) / 10, 1);
+          const inZoneOpacity = lerp(1, 0.06, fadePct);
+          map.setPaintProperty('critical-inzone', 'circle-opacity', inZoneOpacity);
+          map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', inZoneOpacity);
+        } else {
+          map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
+          map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
+        }
       }
     }
 
@@ -560,9 +545,11 @@
       map.setPaintProperty('assembly-points', 'circle-color', '#3B6D11');
       map.setPaintProperty('assembly-points', 'circle-stroke-color', '#ffffff');
       map.setPaintProperty('assembly-points', 'circle-stroke-width', 2);
-      map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
-      map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
       setLegendPulsing(false);
+      if (layersReady && map.getLayer('critical-inzone')) {
+        map.setPaintProperty('critical-inzone', 'circle-opacity', 1);
+        map.setPaintProperty('critical-inzone', 'circle-stroke-opacity', 1);
+      }
     }
 
     function updateUI(minute) {
@@ -638,27 +625,47 @@
       resetMapLayers();
     }
 
-    // Spatial check: which critical facilities are inside inundation zone?
-    function checkInZone(criticalData, inundationData) {
-      const ids = [];
-      // Combine all inundation polygons into one feature collection
-      criticalData.features.forEach((feature, idx) => {
-        if (!feature.geometry) return;
-        try {
-          const inside = inundationData.features.some(poly => {
-            try {
-              return turf.booleanPointInPolygon(feature, poly);
-            } catch(e) { return false; }
-          });
-          if (inside) ids.push(idx);
-        } catch(e) {}
+    const circlePaint = {
+      'circle-radius': 7,
+      'circle-color': [
+        'match', ['get', 'Site_Type'],
+        'HOSPITAL', '#E24B4A',
+        'SCHOOL', '#F0A500',
+        'LAW ENFORCEMENT', '#0057A8',
+        'FIRE DEPARTMENT', '#E8650A',
+        'BRIDGE', '#8B4513',
+        'AIRPORT', '#9B59B6',
+        'LIGHTHOUSE', '#00BCD4',
+        'EMERGENCY MANAGEMENT', '#2E7D32',
+        'COAST GUARD', '#00838F',
+        '#888888'
+      ],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff'
+    };
+
+    function addPopup(layerId) {
+      map.on('click', layerId, (e) => {
+        const name = e.features[0].properties.Name || 'Critical Facility';
+        const type = e.features[0].properties.Site_Type || '';
+        new mapboxgl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <strong>${name}</strong><br/>
+            <span style="font-size:11px; color:#444; max-width:160px; display:block;">
+              ${type}<br/>
+              This facility is within or near the tsunami inundation zone.
+            </span>
+          `)
+          .addTo(map);
       });
-      return ids;
+      map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
     }
 
     map.on('load', () => {
 
-      // Load inundation zone
+      // Inundation zone
       map.addSource('inundation', {
         type: 'geojson',
         data: 'data/DOGAMI_Tsunami_inundation.geojson'
@@ -720,139 +727,6 @@
         }
       });
 
-      // Load critical facilities + run spatial check
-      const criticalUrl = 'data/CriticalFacili_facilities_JSON.geojson';
-      const inundationUrl = 'data/DOGAMI_Tsunami_inundation.geojson';
-
-      Promise.all([
-        fetch(criticalUrl).then(r => r.json()),
-        fetch(inundationUrl).then(r => r.json())
-      ]).then(([criticalData, inundationData]) => {
-
-        // Filter to Seaside bounding box
-        const [west, south, east, north] = SEASIDE_BOUNDS;
-        const filtered = {
-          type: 'FeatureCollection',
-          features: criticalData.features.filter(f => {
-            if (!f.geometry || !f.geometry.coordinates) return false;
-            const [lng, lat] = f.geometry.coordinates;
-            return lng >= west && lng <= east && lat >= south && lat <= north;
-          })
-        };
-
-        // Tag each feature with whether it's inside the inundation zone
-        const taggedFeatures = filtered.features.map((f, idx) => {
-          let insideZone = false;
-          try {
-            insideZone = inundationData.features.some(poly => {
-              try { return turf.booleanPointInPolygon(f, poly); }
-              catch(e) { return false; }
-            });
-          } catch(e) {}
-          return {
-            ...f,
-            properties: { ...f.properties, _inZone: insideZone, _idx: idx }
-          };
-        });
-
-        const taggedGeoJSON = { type: 'FeatureCollection', features: taggedFeatures };
-
-        // Out-of-zone facilities — always visible, never fade
-        map.addSource('critical-outzone', {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: taggedFeatures.filter(f => !f.properties._inZone)
-          }
-        });
-
-        // In-zone facilities — fade during animation
-        map.addSource('critical-inzone', {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: taggedFeatures.filter(f => f.properties._inZone)
-          }
-        });
-
-        const circlePaint = {
-          'circle-radius': 7,
-          'circle-color': [
-            'match', ['get', 'Site_Type'],
-            'HOSPITAL', '#E24B4A',
-            'SCHOOL', '#F0A500',
-            'LAW ENFORCEMENT', '#0057A8',
-            'FIRE DEPARTMENT', '#E8650A',
-            'BRIDGE', '#8B4513',
-            'AIRPORT', '#9B59B6',
-            'LIGHTHOUSE', '#00BCD4',
-            'EMERGENCY MANAGEMENT', '#2E7D32',
-            'COAST GUARD', '#00838F',
-            '#888888'
-          ],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff'
-        };
-
-        map.addLayer({
-          id: 'critical-outzone',
-          type: 'circle',
-          source: 'critical-outzone',
-          paint: circlePaint
-        });
-
-        map.addLayer({
-          id: 'critical-inzone',
-          type: 'circle',
-          source: 'critical-inzone',
-          paint: { ...circlePaint }
-        });
-
-        // Popups for both layers
-        ['critical-outzone', 'critical-inzone'].forEach(layerId => {
-          map.on('click', layerId, (e) => {
-            const name = e.features[0].properties.Name || 'Critical Facility';
-            const type = e.features[0].properties.Site_Type || '';
-            new mapboxgl.Popup()
-              .setLngLat(e.lngLat)
-              .setHTML(`
-                <strong>${name}</strong><br/>
-                <span style="font-size:11px; color:#444; max-width:160px; display:block;">
-                  ${type}<br/>
-                  This facility is within or near the tsunami inundation zone.
-                </span>
-              `)
-              .addTo(map);
-          });
-          map.on('mouseenter', layerId, () => {
-            map.getCanvas().style.cursor = 'pointer';
-          });
-          map.on('mouseleave', layerId, () => {
-            map.getCanvas().style.cursor = '';
-          });
-        });
-
-      }).catch(err => {
-        console.error('Error loading data for spatial check:', err);
-        // Fallback — load critical facilities without zone distinction
-        map.addSource('critical-inzone', {
-          type: 'geojson',
-          data: criticalUrl
-        });
-        map.addLayer({
-          id: 'critical-inzone',
-          type: 'circle',
-          source: 'critical-inzone',
-          paint: {
-            'circle-radius': 7,
-            'circle-color': '#888888',
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff'
-          }
-        });
-      });
-
-      // Assembly popups
       map.on('click', 'assembly-points', (e) => {
         const name = e.features[0].properties.Location || 'Assembly Area';
         new mapboxgl.Popup()
@@ -867,12 +741,93 @@
           `)
           .addTo(map);
       });
+      map.on('mouseenter', 'assembly-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'assembly-points', () => { map.getCanvas().style.cursor = ''; });
 
-      map.on('mouseenter', 'assembly-points', () => {
-        map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', 'assembly-points', () => {
-        map.getCanvas().style.cursor = '';
+      // Load critical facilities + inundation zone for spatial check
+      Promise.all([
+        fetch('data/CriticalFacili_facilities_JSON.geojson').then(r => r.json()),
+        fetch('data/DOGAMI_Tsunami_inundation.geojson').then(r => r.json())
+      ]).then(([criticalData, inundationData]) => {
+
+        const [west, south, east, north] = SEASIDE_BOUNDS;
+
+        // Filter to Seaside bounding box
+        const seasideFeatures = criticalData.features.filter(f => {
+          if (!f.geometry || !f.geometry.coordinates) return false;
+          const [lng, lat] = f.geometry.coordinates;
+          return lng >= west && lng <= east && lat >= south && lat <= north;
+        });
+
+        // Tag each feature: inside or outside inundation zone
+        const inZone = [];
+        const outZone = [];
+
+        seasideFeatures.forEach(f => {
+          let inside = false;
+          try {
+            inside = inundationData.features.some(poly => {
+              try { return turf.booleanPointInPolygon(f, poly); }
+              catch(e) { return false; }
+            });
+          } catch(e) {}
+          if (inside) {
+            inZone.push(f);
+          } else {
+            outZone.push(f);
+          }
+        });
+
+        console.log(`Critical facilities — in zone: ${inZone.length}, out of zone: ${outZone.length}`);
+
+        // Out-of-zone layer — never fades
+        map.addSource('critical-outzone', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: outZone }
+        });
+        map.addLayer({
+          id: 'critical-outzone',
+          type: 'circle',
+          source: 'critical-outzone',
+          paint: { ...circlePaint }
+        });
+        addPopup('critical-outzone');
+
+        // In-zone layer — fades during animation
+        map.addSource('critical-inzone', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: inZone }
+        });
+        map.addLayer({
+          id: 'critical-inzone',
+          type: 'circle',
+          source: 'critical-inzone',
+          paint: {
+            ...circlePaint,
+            'circle-opacity': 1,
+            'circle-stroke-opacity': 1
+          }
+        });
+        addPopup('critical-inzone');
+
+        layersReady = true;
+        console.log('Critical facility layers ready.');
+
+      }).catch(err => {
+        console.error('Spatial check failed:', err);
+        // Fallback — load all critical facilities as one layer, no fade
+        map.addSource('critical-inzone', {
+          type: 'geojson',
+          data: 'data/CriticalFacili_facilities_JSON.geojson'
+        });
+        map.addLayer({
+          id: 'critical-inzone',
+          type: 'circle',
+          source: 'critical-inzone',
+          paint: { ...circlePaint }
+        });
+        addPopup('critical-inzone');
+        layersReady = true;
       });
 
     }); // end map.on('load')
